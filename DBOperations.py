@@ -96,6 +96,18 @@ class DatabaseOperations:
         except sqlite3.Error as e:
             print(f"Error occurred while fetching data: {e}")
             return None
+    
+    def get_source_data(self,mapName):
+        if not self.connection:
+            self.create_connection()
+        try:
+            query = f"SELECT position FROM tbt_sources as ts Join tbt_maps tm On tm.map_id = ts.map_id where tm.map_name = ?"
+            cursor = self.connection.execute(query, (mapName,))
+            results = cursor.fetchall()
+            return results
+        except sqlite3.Error as e:
+            print(f"Error occurred while fetching data: {e}")
+            return None
             
     def isDuplicateMapName(self, mapName=None):
         if not self.connection:

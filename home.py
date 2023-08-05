@@ -20,6 +20,8 @@ from customtkinter import CTkEntry as OriginalCTkEntry
 
 
 user_name = 'user'
+sock =None
+
 
 customtkinter.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
 customtkinter.set_default_color_theme("green")  # Themes: "blue" (standard), "green", "dark-blue"
@@ -52,14 +54,18 @@ pause=True
 newMap_name = None
 map_id = None
 mode = "home"
+map_data = None
+dest_data = None
 #cap = cv2.VideoCapture("http://10.0.10.236:8080/stream/video.mjpeg")
 
 db_file_path = "agv.db"
 
 #destination stuff
-dest_color_array = ["orange","purple", "cyan","brown","olive"]
-dest_count = 1
+dest_color_array = ["brown1","purple", "cyan","brown","olive"]
+dest_count = 0
 destName = None
+path_dest_names = []
+path_list = []
 
 class App(customtkinter.CTk):
        
@@ -105,21 +111,21 @@ class App(customtkinter.CTk):
         self.navigate_tab.grid_rowconfigure((0,1,2,3), weight=1)
         self.navigate_tab.grid_columnconfigure((0,1,2), weight=1)
         
-        self.button_connect = customtkinter.CTkButton(self.navigate_tab, text = "Connect",command=lambda:threading.Thread(target=pause_func_False).start())
+        self.button_connect = customtkinter.CTkButton(self.navigate_tab, text = "Connect",command=lambda:threading.Thread(target=self.start_connection).start())
         self.button_connect.grid(row=1, column=0, padx=5, pady=(20,5),columnspan = 3)
         
         self.button_map_collection = customtkinter.CTkOptionMenu(self.navigate_tab, values=["Select Map"], command=self.set_map)
         self.button_map_collection.grid(row=2, column=0, padx=5, pady=5, columnspan = 3)
 
-        self.button_dest_collection = customtkinter.CTkOptionMenu(self.navigate_tab, values=["Select Destination"],command=self.set_destination_color)
+        self.button_dest_collection = customtkinter.CTkOptionMenu(self.navigate_tab, values=["Select Destination"],command=self.set_destination_color_main)
         self.button_dest_collection.grid(row=3, column=1, sticky='w', padx = (10,0))
         
-        self.orange_box_canvas = customtkinter.CTkCanvas(self.navigate_tab, width=50, height=50, bg="#333333", highlightthickness=0)
-        self.orange_box_canvas.grid(row=3,column=0,sticky='e')
+        self.main_dest_box_canvas = customtkinter.CTkCanvas(self.navigate_tab, width=50, height=50, bg="#333333", highlightthickness=0)
+        self.main_dest_box_canvas.grid(row=3,column=0,sticky='e')
 
         box_width = 40
         box_height = 40
-        # self.orange_box_canvas.create_rectangle(5, 5, box_width, box_height, fill="orange")  # Added a slight offset for the rectangle
+        # self.main_dest_box_canvas.create_rectangle(5, 5, box_width, box_height, fill="orange")  # Added a slight offset for the rectangle
 
         self.button_start = customtkinter.CTkButton(self.navigate_tab, text="Start")
         self.button_start.grid(row=5, column=0, padx=5, pady=5, columnspan = 3)
@@ -128,23 +134,26 @@ class App(customtkinter.CTk):
         self.tabview.grid(row=7, column=0, padx=(20, 20), pady=(20, 0), sticky="nsew")
         self.tabview.add("Bot")
         self.tabview.add("Map")
+        self.tabview.add("Path")
         self.tabview.add("   UI  ")
         self.tabview.tab("   UI  ").grid_columnconfigure(0, weight=1)  # configure grid of individual tabs
         self.tabview.tab("Map").grid_columnconfigure(0, weight=1)
         self.tabview.tab("Bot").grid_columnconfigure(0, weight=1)
+        self.tabview.tab("Path").grid_columnconfigure(0, weight=1)
+
 
         self.label_Device_id = customtkinter.CTkLabel(self.tabview.tab("Bot"), text="Device ID", anchor="w")
         self.label_Device_id.grid(row=1, column=0, padx=5, pady=(5, 0))
-        self.dropdown_Device_id = customtkinter.CTkOptionMenu(self.tabview.tab("Bot"), values=["INFY5GAGV1","INFY5GAGV2","INFY5GAGV3"])
+        self.dropdown_Device_id = customtkinter.CTkOptionMenu(self.tabview.tab("Bot"), values=["BNMITAGV1","BNMITAGV2","BNMITAGV3"])
         self.dropdown_Device_id.grid(row=1, column=1, padx=5, pady=(5,0))
         
-        self.button_login = customtkinter.CTkButton(self.tabview.tab("Bot"), text="Forward",command=lambda m="FORWARD":threading.Thread(target=send_command,args=[m]).start())
+        self.button_login = customtkinter.CTkButton(self.tabview.tab("Bot"), text="Forward",command=lambda m="FORWARD":threading.Thread(target=self.send_command,args=[m]).start())
         self.button_login.grid(row=2, column=0, sticky="news", pady=(20,5))
-        self.button_login = customtkinter.CTkButton(self.tabview.tab("Bot"), text="Left",command=lambda m="LEFT":threading.Thread(target=send_command,args=[m]).start())
+        self.button_login = customtkinter.CTkButton(self.tabview.tab("Bot"), text="Left",command=lambda m="LEFT":threading.Thread(target=self.send_command,args=[m]).start())
         self.button_login.grid(row=3, column=0, pady=(20,5))
-        self.button_login = customtkinter.CTkButton(self.tabview.tab("Bot"), text="Right",command=lambda m="RIGHT":threading.Thread(target=send_command,args=[m]).start())
+        self.button_login = customtkinter.CTkButton(self.tabview.tab("Bot"), text="Right",command=lambda m="RIGHT":threading.Thread(target=self.send_command,args=[m]).start())
         self.button_login.grid(row=3, column=1,  pady=(20,5))
-        self.button_login = customtkinter.CTkButton(self.tabview.tab("Bot"), text="Backward",command=lambda m="BACKWARD":threading.Thread(target=send_command,args=[m]).start())
+        self.button_login = customtkinter.CTkButton(self.tabview.tab("Bot"), text="Backward",command=lambda m="BACKWARD":threading.Thread(target=self.send_command,args=[m]).start())
         self.button_login.grid(row=2, column=1,  pady=(20,5))
         self.label_Duration = customtkinter.CTkLabel(self.tabview.tab("Bot"), text="Duration", anchor="w")
         self.label_Duration.grid(row=6, column=0,  pady=(20, 0))
@@ -197,7 +206,7 @@ class App(customtkinter.CTk):
         self.button_add_obstacles = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Add Obstacle", command=self.start_obstacles_mode, state="disabled")
         self.button_add_obstacles.grid(row=5, column=1, padx=5, pady=(5,10), sticky="nsew")
         
-        self.button_add_destination = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Add Dest "+str(dest_count), command=self.start_destination_mode, state="disabled")
+        self.button_add_destination = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Add Dest "+str(dest_count +1), command=self.start_destination_mode, state="disabled")
         self.button_add_destination.grid(row=6, column=0, padx=5, pady=(5,10), sticky="nsew")
     
         self.button_close_map = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Close Map")
@@ -212,6 +221,34 @@ class App(customtkinter.CTk):
         self.button_move_down = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Move Down", command = self.move_down_clicked)
         self.button_move_down.grid(row=9, column=0, columnspan =2, padx=5, pady=(5,10))
         
+        #Path Tab
+        
+        self.path_dest_box_canvas = customtkinter.CTkCanvas(self.tabview.tab("Path"), width=40, height=40, bg="#ffffff", highlightthickness=0)
+        self.path_dest_box_canvas.grid(row=0,column=0,sticky='e')
+        
+        self.path_dest_collection = customtkinter.CTkOptionMenu(self.tabview.tab("Path"), values=["Select Destination"],command=self.set_destination_color_path)
+        self.path_dest_collection.grid(row=0, column=1, sticky='w', padx = (10,0))
+        
+        self.button_start_path = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Start Path", command= self.start_new_path)
+        self.button_start_path.grid(row=1, column=0, columnspan =2, padx=5, pady=(5,10)) 
+        
+        self.button_revert_path = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Revert Path", command= self.revert_path)
+        self.button_revert_path.grid(row=2, column=0, columnspan =2, padx=5, pady=(5,10))
+        
+        self.button_path_move_up = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Up", command= self.move_up_clicked)
+        self.button_path_move_up.grid(row=3, column=0, columnspan =2, padx=5, pady=(25,10))       
+        self.button_path_move_left = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Left", command = self.move_left_clicked)
+        self.button_path_move_left.grid(row=4, column=0, padx=5, pady=(5,10), sticky="nsew")       
+        self.button_path_move_right = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Right", command = self.move_right_clicked)
+        self.button_path_move_right.grid(row=4, column=1, padx=5, pady=(5,10), sticky="nsew")       
+        self.button_path_move_down = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Down", command = self.move_down_clicked)
+        self.button_path_move_down.grid(row=5, column=0, columnspan =2, padx=5, pady=(5,10)) 
+        
+        self.button_save_path = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Save Path",fg_color='#71c7ec', text_color = "#000000")
+        self.button_save_path.grid(row=6, column=0, columnspan =2, padx=5, pady=(15,10))
+        
+        #UI Tab
+        
         self.appearance_mode_label = customtkinter.CTkLabel(self.tabview.tab("   UI  "), text="Appearance Mode:", anchor="w")
         self.appearance_mode_label.grid(row=5, column=0, padx=20, pady=(10, 0))
         self.appearance_mode_optionemenu = customtkinter.CTkOptionMenu(self.tabview.tab("   UI  "), values=["Light", "Dark", "System"],
@@ -223,7 +260,7 @@ class App(customtkinter.CTk):
                                                                command=self.change_scaling_event)
         self.scaling_optionemenu.grid(row=8, column=0, padx=20, pady=(10, 20))
         
-        self.button_update = customtkinter.CTkButton(self.configuration_tab,  height = 50,  fg_color='#ff0e0e', text_color = "#000000",  font=customtkinter.CTkFont(size=25, weight="bold"), text = "STOP",command=lambda m="STOP":threading.Thread(target=send_command,args=[m]).start())
+        self.button_update = customtkinter.CTkButton(self.configuration_tab,  height = 50,  fg_color='#ff0e0e', text_color = "#000000",  font=customtkinter.CTkFont(size=25, weight="bold"), text = "STOP",command=lambda m="STOP":threading.Thread(target=self.send_command,args=[m]).start())
         self.button_update.grid(row=8, column=0, padx=5, pady=(20,5))
 
         self.map_display_tab = customtkinter.CTkFrame(self, corner_radius=10)
@@ -321,11 +358,49 @@ class App(customtkinter.CTk):
         db_obj.create_table_if_not_exists(table5_name, columns5)
         
         table6_name = "tbt_paths"
-        columns6 = "path_id INTEGER PRIMARY KEY AUTOINCREMENT, path_name TEXT NOT NULL UNIQUE,  map_id INTEGER, path_from TEXT , path_to TEXT , created_by TEXT, created_dt DATE, updated_by TEXT, updated_dt DATE, remarks TEXT, FOREIGN KEY (map_id) REFERENCES maps(map_id)"
+        columns6 = "path_id INTEGER PRIMARY KEY AUTOINCREMENT, map_id INTEGER,  path_to TEXT , path_value TEXT, created_by TEXT, created_dt DATE, updated_by TEXT, updated_dt DATE, remarks TEXT, FOREIGN KEY (map_id) REFERENCES maps(map_id)"
         db_obj.create_table_if_not_exists(table6_name, columns6)
         
         db_obj.close_connection()
-   
+        
+        
+    def start_new_path(self):
+        global newMap_name
+        print("start New Path")
+        db_obj = DatabaseOperations(db_file_path)
+        map_data = db_obj.get_map_data(newMap_name)
+        #print(map_data)
+        self.resize_grid_on_map_select(map_data)
+        dest_data = db_obj.get_dest_data(newMap_name)
+        print("Dest ",dest_data)
+        self.set_destination_values(dest_data)
+        self.populate_path_source()
+        
+        
+    def populate_path_source(self):
+        global y_axis_min,y_axis_max,x_axis_min,x_axis_max,mode
+        db_obj = DatabaseOperations(db_file_path)
+        source_pos = db_obj.get_source_data(newMap_name)
+        print(source_pos)
+        for row in source_pos:
+            value = row[0] 
+            y_value,x_value= value.split(":")
+            y_axis_min,y_axis_max=y_value.split(",")
+            x_axis_min,x_axis_max=x_value.split(",")
+            x_axis_min = int(x_axis_min)
+            x_axis_max = int(x_axis_max)
+            y_axis_min = int(y_axis_min)
+            y_axis_max = int(y_axis_max)
+            print(y_axis_min," ", y_axis_max, " ",x_axis_min," ",x_axis_max)
+            for col in range(int(y_axis_min),int(y_axis_max)):
+                for row in range(int(x_axis_min),int(x_axis_max)): 
+                    self.canvas.create_rectangle(row * GRID_SIZE, col * GRID_SIZE, (row + 1) * GRID_SIZE, (col + 1) * GRID_SIZE, fill="orange")
+            self.update_map_header(newMap_name + " map : Mode - Path")
+            mode = "path"
+
+    def revert_path():
+        print("")
+        
     def get_existing_map_names(self):
         db_obj = DatabaseOperations(db_file_path)
         maps = db_obj.get_maps()
@@ -336,8 +411,9 @@ class App(customtkinter.CTk):
         if len(map_names) > 0:
             self.button_map_collection.configure(values=map_names)
 
+    #Open New Map Method
     def set_map(self, event: str):
-        global mapName
+        global mapName,map_data
         mapName = self.button_map_collection.get()
         db_obj = DatabaseOperations(db_file_path)
         map_data = db_obj.get_map_data(mapName)
@@ -347,7 +423,7 @@ class App(customtkinter.CTk):
         self.set_destination_dropdown()
         
     def set_destination_dropdown(self):
-        global mapName
+        global mapName, dest_data
         mapName = self.button_map_collection.get()
         db_obj = DatabaseOperations(db_file_path)
         print(mapName)
@@ -432,7 +508,7 @@ class App(customtkinter.CTk):
             if(newMap_name is not None):
                 self.populate_destination()
                 self.update_map_header(newMap_name + " map : Mode - Add Destination")
-                self.button_add_destination.configure(text = "Save Dest "+str(dest_count))
+                self.button_add_destination.configure(text = "Save Dest "+str(dest_count+1))
                 mode = "addDestination"
                 self.button_move_up.configure(state="enabled")
                 self.button_move_down.configure(state="enabled")
@@ -494,25 +570,111 @@ class App(customtkinter.CTk):
             self.move_bot("up","Green",1)
         elif(mode == "addDestination"):
             self.move_bot("up",dest_color_array[dest_count],2)
+        elif(mode == "path"):
+            self.move_path("up")
             
     def move_down_clicked(self):
         if(mode == "addSource"):
             self.move_bot("down","Green",1)
         elif(mode == "addDestination"):
             self.move_bot("down",dest_color_array[dest_count],2)
+        elif(mode == "path"):
+            self.move_path("down")
+            
             
     def move_right_clicked(self):
         if(mode == "addSource"):
             self.move_bot("right","Green",1)
         elif(mode == "addDestination"):
             self.move_bot("right",dest_color_array[dest_count],2)
+        elif(mode == "path"):
+            self.move_path("right")
       
     def move_left_clicked(self):
         if(mode == "addSource"):
             self.move_bot("left","Green",1)
         elif(mode == "addDestination"):
-            self.move_bot("left",dest_color_array[dest_count],2)  
-                       
+            self.move_bot("left",dest_color_array[dest_count],2)
+        elif(mode == "path"):
+            self.move_path("left")
+    
+    def move_path(self, direction:str):
+        global y_axis_min,x_axis_min,y_axis_max,x_axis_max,grid
+        y_axis_min_old = y_axis_min
+        y_axis_max_old = y_axis_max
+        x_axis_min_old = x_axis_min
+        x_axis_max_old = x_axis_max
+        
+        print("Before : x_min = ",x_axis_min," : x_max = ",x_axis_max," : y_min = ",y_axis_min," : y_max = ",y_axis_max)
+        
+        if(direction == "up"):
+            if(y_axis_min>0):
+                y_axis_min = y_axis_min-1
+                y_axis_max = y_axis_max-1
+            else:
+                messagebox.showwarning('error', 'Cannot move UP anymore!')
+        elif(direction == "down"):
+            if(y_axis_max < GRID_HEIGHT):
+                y_axis_min = y_axis_min+1
+                y_axis_max = y_axis_max+1
+            else:
+                messagebox.showwarning('error', 'Cannot move DOWN anymore!')
+        elif(direction == "right"):
+            if(x_axis_max < GRID_WIDTH):
+                x_axis_min = x_axis_min+1
+                x_axis_max = x_axis_max+1
+            else:
+                messagebox.showwarning('error', 'Cannot move RIGHT anymore!')
+        elif(direction == "left"):
+            if(x_axis_min > 0):
+                x_axis_min = x_axis_min-1
+                x_axis_max = x_axis_max-1
+            else:
+                messagebox.showwarning('error', 'Cannot move LEFT anymore!')
+
+        temp_grid = deepcopy(grid)
+ 
+        print("GRID WIDTH = ",GRID_WIDTH,"  :  GRID HEIGHT = ",GRID_HEIGHT)
+        print("x_min = ",x_axis_min," : x_max = ",x_axis_max," : y_min = ",y_axis_min," : y_max = ",y_axis_max)
+
+        for y in range(x_axis_min_old,x_axis_max_old):
+            for x in range(y_axis_min_old,y_axis_max_old):
+                temp_grid[x][y] = 0
+                
+        # print("''''''")
+        # print("GRID = ",grid)
+        # print("TEMP_GRID = ",temp_grid)
+        print("x_min_old = ",x_axis_min_old ," : x_max_old  = ",x_axis_max_old ," : y_min_old  = ",y_axis_min_old ," : y_max_old  = ",y_axis_max_old)
+        
+        if self.is_valid_path_move(temp_grid, x_axis_min,x_axis_max,y_axis_min,y_axis_max):
+            temp_grid.clear()
+            for y in range(x_axis_min_old,x_axis_max_old):
+                for x in range(y_axis_min_old,y_axis_max_old):
+                    if(grid[x][y] == 1):
+                        self.populate_grid(y,x,"green")
+                    elif(grid[x][y] == 2):
+                        self.populate_grid(y,x,"red")
+                    # elif(grid[x][y] == 4):
+                    #      self.populate_grid(y,x,"white")
+
+            for y in range(x_axis_min,x_axis_max):
+                for x in range(y_axis_min,y_axis_max):
+                    if(grid[x][y] == 2):
+                        self.populate_grid(y,x,"midnightblue")
+                    else:
+                        self.populate_grid(y,x,"yellow1")
+                        grid[x][y] = 4
+                        self.update_dimension_header("Top: "+str(y_axis_min/resolution)+" ft - Left : "+str(x_axis_min/resolution)+" ft - Right : "+str((GRID_WIDTH-x_axis_max)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_axis_max)/resolution)+" ft")
+            #print("Post Update = ",grid)
+        else:
+            messagebox.showwarning('error', 'Cannot move due to source/Obstacle!')
+            temp_grid.clear()
+            y_axis_min = y_axis_min_old
+            y_axis_max = y_axis_max_old
+            x_axis_min = x_axis_min_old
+            x_axis_max = x_axis_max_old
+    
+          
     def move_bot(self, direction:str, color:str, weight:int):
         global y_axis_min,x_axis_min,y_axis_max,x_axis_max,grid
         y_axis_min_old = y_axis_min
@@ -552,11 +714,11 @@ class App(customtkinter.CTk):
             for x in range(y_axis_min_old,y_axis_max_old):
                 temp_grid[x][y] = 0
                 
-        print("''''''")
-        print("GRID = ",grid)
-        print("TEMP_GRID = ",temp_grid)
-        print("x_min = ",x_axis_min," : x_max = ",x_axis_max," : y_min = ",y_axis_min," : y_max = ",y_axis_max)
-        print("x_min_old = ",x_axis_min_old ," : x_max_old  = ",x_axis_max_old ," : y_min_old  = ",y_axis_min_old ," : y_max_old  = ",y_axis_max_old)
+        # print("''''''")
+        # print("GRID = ",grid)
+        # print("TEMP_GRID = ",temp_grid)
+        # print("x_min = ",x_axis_min," : x_max = ",x_axis_max," : y_min = ",y_axis_min," : y_max = ",y_axis_max)
+        # print("x_min_old = ",x_axis_min_old ," : x_max_old  = ",x_axis_max_old ," : y_min_old  = ",y_axis_min_old ," : y_max_old  = ",y_axis_max_old)
         
         if self.is_valid_move(temp_grid, x_axis_min,x_axis_max,y_axis_min,y_axis_max):
             temp_grid.clear()
@@ -569,7 +731,7 @@ class App(customtkinter.CTk):
                     self.populate_grid(y,x,color)
                     grid[x][y] = weight
             self.update_dimension_header("Top: "+str(y_axis_min/resolution)+" ft - Left : "+str(x_axis_min/resolution)+" ft - Right : "+str((GRID_WIDTH-x_axis_max)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_axis_max)/resolution)+" ft")
-            print("Post Update = ",grid)
+            #print("Post Update = ",grid)
         else:
             messagebox.showwarning('error', 'Cannot move due to source/Obstacle!')
             temp_grid.clear()
@@ -602,7 +764,6 @@ class App(customtkinter.CTk):
         self.button_move_left.configure(state = condition)
         self.button_close_map.configure(state = condition)
     
-    #aki do here
     def set_map_values(self, data):
         global resolution_factor, GRID_WIDTH, GRID_HEIGHT
         self.set_map_items_state("normal")
@@ -621,7 +782,7 @@ class App(customtkinter.CTk):
             GRID_WIDTH =int(map_data[2])
             GRID_HEIGHT = int(map_data[3])
             
-    def set_destination_color(self, event: str):
+    def set_destination_color_main(self, event: str):
         global mapName
         mapName = self.button_map_collection.get()
         dest_name = self.button_dest_collection.get()
@@ -630,7 +791,13 @@ class App(customtkinter.CTk):
         
         for row in dest_data:
             if(row[0]==dest_name.split(" : ")[0]):
-                self.orange_box_canvas.create_rectangle(5, 5, 40, 40, fill=row[2])  # Added a slight offset for the rectangle
+                self.main_dest_box_canvas.create_rectangle(5, 5, 40, 40, fill=row[2])  # Added a slight offset for the rectangle
+                
+    def set_destination_color_path(self, event: str):
+        global mapName
+        dest_name = self.path_dest_collection.get()
+        self.path_dest_box_canvas.create_rectangle(0, 0, 40, 40, fill=dest_name.split(" : ")[1])  # Added a slight offset for the rectangle
+                
 
     def set_destination_values(self,dest_data):
         print("Set destination values")
@@ -683,11 +850,23 @@ class App(customtkinter.CTk):
         dest_id = db_obj.insert_data_into_table(table_name, columns, data=data_to_insert)
         self.upgrade_map_grid()
         dest_count = dest_count+1
-        self.button_add_destination.configure(text="Add Dest "+str(dest_count))
+        self.button_add_destination.configure(text="Add Dest "+str(dest_count+1))
+        self.update_path_destination_list(destName, str(dest_color_array[dest_count-1]))
+    
+    def update_path_destination_list(self, dest_name:str, color: str):
+        print("Updating path destination List,")
+        global path_dest_names
+        dest_name = dest_name+" : "+color
+        print(dest_name)
+        path_dest_names.append(dest_name) 
+    
+        if len(path_dest_names) > 0:
+            self.path_dest_collection.configure(values=path_dest_names)
+        
 
     def upgrade_map_grid(self):
         global map_id
-        print("GRID to update = ",grid)
+       # print("GRID to update = ",grid)
         table_name = "tbt_maps"
         column_name_to_update = "grid_values" 
         new_value_to_set = str(grid)
@@ -808,7 +987,7 @@ class App(customtkinter.CTk):
         for mapdata in map_data:
             
             grid= self.convert_string_to_2d_matrix(mapdata[4],GRID_WIDTH)
-            print(grid)
+            #print(grid)
             for row in range(GRID_WIDTH):
                 for col in range(GRID_HEIGHT):
                     color = "WHITE"
@@ -1020,16 +1199,28 @@ class App(customtkinter.CTk):
         return True
     
     def is_valid_move(self, grid, x1,x2,y1,y2):
-        print("valid move GRID LENGTH X = ",len(grid[0]))
-        print("valid move GRID LENGTH Y = ",len(grid))
-        print("valid move GRID = ",grid)
+        # print("valid move GRID LENGTH X = ",len(grid[0]))
+        # print("valid move GRID LENGTH Y = ",len(grid))
+        # print("valid move GRID = ",grid)
         
         for i in range(y1,y2):
             for j in range(x1,x2):
-                print("valid move i = ",i, " : j = ",j)
+                #print("valid move i = ",i, " : j = ",j)
                 if grid[i][j] != 0:
                     return False
-        print("''''''")
+        #print("''''''")
+        return True
+    
+    def is_valid_path_move(self, grid, x1,x2,y1,y2):
+        # print("valid move GRID LENGTH X = ",len(grid[0]))
+        # print("valid move GRID LENGTH Y = ",len(grid))
+        # print("valid move GRID = ",grid)
+        for i in range(y1,y2):
+            for j in range(x1,x2):
+                #print("valid move i = ",i, " : j = ",j)
+                if not(grid[i][j] == 0 or grid[i][j] == 1  or grid[i][j] == 2):
+                    return False
+        #print("''''''")
         return True
 
     def find_nearest_fit(self, grid, obj_size_x, obj_size_y):
@@ -1041,6 +1232,89 @@ class App(customtkinter.CTk):
                 if self.is_valid_placement(grid, x, y, obj_size_x, obj_size_y):
                     return x, y
         return None
+    
+    def start_connection(self):
+        global sock
+        print("connecting")
+        if sock is None:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_address = ('192.168.1.8', 8)
+            sock.connect(server_address)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            print("Socket connected")
+            messagebox.showinfo("Connected","Connected")
+            label = customtkinter.CTkLabel(self.bot_display_tab, text="Connected")
+            #label.grid(row=App.send.counter, column=0, padx=20, pady=(0))
+        else:
+            print("Using existing connection")
+            messagebox.showerror("Unable to Connect", "Please try again.")
+
+            
+    def send_command(self,direction):
+        global sock
+        
+        #App.send_command.counter+=1
+        # print(direction)
+
+        if self.speed_slider.get()=="":
+            speed=0
+        else:
+            speed=self.speed_slider.get()
+
+        if self.entry_Duration.get()=="":
+            parameter=0
+        else:
+            parameter=self.entry_Duration.get()
+        
+        if direction=='STOP':
+            speed=0
+            parameter=0
+        print("Device ID",self.dropdown_Device_id.get(),"Speed= ",speed , "Parameters=",0)
+        data=(self.dropdown_Device_id.get()+"_"+direction+"_"+str(parameter)+"_"+str(int(speed)))
+        self.send(data)
+        
+
+    
+    def send(self,data):
+        global sock
+        #App.send.counter+=1
+        try:
+            # Send data
+            if sock is None:
+                print("No connection")
+                self.start_connection()
+                
+            sent_data = data
+            print('sending ',(data))
+            sock.sendall( bytes( data, encoding="utf-8" ) )
+            label = customtkinter.CTkLabel(self.bot_display_tab, text=f"Sent data:{sent_data}")
+            #label.grid(row=App.send.counter, column=0, padx=20, pady=(0))
+            # self.scrollable_frame_switches.append(label)
+            
+            #recv data
+
+            data = sock.recv(32)
+            received_data=data.decode("utf-8")
+            #  print('received',received_data)
+            label = customtkinter.CTkLabel(self.bot_display_tab, text=f"{received_data}")
+            #label.grid(row=App.send.counter+1, column=0, padx=20, pady=(0))
+            # self.scrollable_frame_switches.append(label)
+            #App.send.counter=App.send.counter+1    
+        
+        
+        
+        finally:
+            print('done')
+            # sock.close() 
+            
+
+
+    def close_connection(self):
+        global sock
+        if sock is not None:
+            sock.close()
+            sock = None
+            print("Socket closed")       
 
 if __name__ == "__main__":
     app = App()
