@@ -1245,9 +1245,29 @@ class App(customtkinter.CTk):
             messagebox.showinfo("Connected","Connected")
             label = customtkinter.CTkLabel(self.bot_display_tab, text="Connected")
             #label.grid(row=App.send.counter, column=0, padx=20, pady=(0))
+            receive_thread = threading.Thread(target=self.receive_data)
+            receive_thread.start()
+            
         else:
             print("Using existing connection")
             messagebox.showerror("Unable to Connect", "Please try again.")
+            
+    def receive_data(self):        
+        while True:
+            try:
+                data = sock.recv(32)
+                if not data:
+                    break  # No more data, exit loop
+
+                try:
+                    received_data = data.decode("utf-8")
+                    print('Received:', received_data)
+                except UnicodeDecodeError:
+                    print('Received (raw bytes):', data)
+
+            except Exception as e:
+                print('Exception:', e)
+                break  # Handle exceptions and errors as needed
 
             
     def send_command(self,direction):
@@ -1277,9 +1297,7 @@ class App(customtkinter.CTk):
     
     def send(self,data):
         global sock
-        #App.send.counter+=1
         try:
-            # Send data
             if sock is None:
                 print("No connection")
                 self.start_connection()
@@ -1293,22 +1311,18 @@ class App(customtkinter.CTk):
             
             #recv data
 
-            data = sock.recv(32)
-            received_data=data.decode("utf-8")
-            #  print('received',received_data)
-            label = customtkinter.CTkLabel(self.bot_display_tab, text=f"{received_data}")
+            # data = sock.recv(32)
+            # received_data=data.decode("utf-8")
+            # print('received',received_data)
+            
+            # label = customtkinter.CTkLabel(self.bot_display_tab, text=f"{received_data}")
             #label.grid(row=App.send.counter+1, column=0, padx=20, pady=(0))
-            # self.scrollable_frame_switches.append(label)
-            #App.send.counter=App.send.counter+1    
-        
-        
-        
+            # self.scrollable_frame_switches.append(label)      
         finally:
-            print('done')
+            print('Transimission Completed')
             # sock.close() 
             
-
-
+            
     def close_connection(self):
         global sock
         if sock is not None:
