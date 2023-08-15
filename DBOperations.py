@@ -89,7 +89,7 @@ class DatabaseOperations:
         if not self.connection:
             self.create_connection()
         try:
-            query = f"SELECT dest_name, position,color FROM tbt_destinations as td Join tbt_maps tm On tm.map_id = td.map_id where tm.map_name = ?"
+            query = f"SELECT dest_name, position,color,direction FROM tbt_destinations as td Join tbt_maps tm On tm.map_id = td.map_id where tm.map_name = ?"
             cursor = self.connection.execute(query, (mapName,))
             results = cursor.fetchall()
             return results
@@ -101,7 +101,7 @@ class DatabaseOperations:
         if not self.connection:
             self.create_connection()
         try:
-            query = f"SELECT position FROM tbt_sources as ts Join tbt_maps tm On tm.map_id = ts.map_id where tm.map_name = ?"
+            query = f"SELECT position,direction FROM tbt_sources as ts Join tbt_maps tm On tm.map_id = ts.map_id where tm.map_name = ?"
             cursor = self.connection.execute(query, (mapName,))
             results = cursor.fetchall()
             return results
