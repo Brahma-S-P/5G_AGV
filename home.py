@@ -370,19 +370,23 @@ class App(customtkinter.CTk):
     # movement stuff
     
     def populate_grid(self, x_top_left: int, y_top_left: int, x_bottom_right: int, y_bottom_right: int, color: str):
+        
         if(mode == "addSource"):
             self.canvas.create_rectangle(x_top_left * GRID_SIZE,y_top_left * GRID_SIZE,
                             (x_bottom_right) * GRID_SIZE, (y_bottom_right) * GRID_SIZE,
                             fill=color, tags="source")
             self.update_arrow("source_arrow")
         elif(mode == "addDestination"):
+            
             self.canvas.create_rectangle(x_top_left * GRID_SIZE,y_top_left * GRID_SIZE,
                             (x_bottom_right) * GRID_SIZE, (y_bottom_right) * GRID_SIZE,
                             fill=dest_color_array[dest_count], tags="dest_"+dest_color_array[dest_count])
             self.update_arrow(dest_color_array[dest_count])
-        elif(mode == "path"):
-            self.move_path("down")
+       
         
+    def populate_grid_path(self, x_top_left: int, y_top_left: int, x_bottom_right: int, y_bottom_right: int, color: str, tag:str):
+        self.canvas.create_rectangle(int(x_top_left) * GRID_SIZE,int(y_top_left) * GRID_SIZE,(int(x_bottom_right)) * GRID_SIZE, (int(y_bottom_right)) * GRID_SIZE,fill=color, tags=tag)
+        self.update_arrow("arrow_path_"+tag)
         
     def update_arrow(self,tag:str):
         self.canvas.delete(tag)
@@ -420,7 +424,7 @@ class App(customtkinter.CTk):
         elif(mode == "addDestination"):
             self.update_arrow(dest_color_array[dest_count])
         elif(mode == "path"):
-            self.move_path("down")
+            self.update_arrow("arrow_path_tag_path_source")
         
     def move_forward(self):
         global x_top_left, y_top_left, x_btm_right, y_btm_right, direction
@@ -443,7 +447,15 @@ class App(customtkinter.CTk):
                          y_top_left  = y_top_left + 1
                          y_btm_right = y_btm_right + 1
                 elif(mode == "path"):
-                    self.move_path("down")
+                    temp_grid = deepcopy(grid)
+                    if self.is_valid_path_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
+                        #self.canvas.delete("dest_"+dest_color_array[dest_count])
+                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","tag_path_source")
+                        temp_grid.clear()
+                    else:
+                        messagebox.showwarning('error', 'Cannot move UP anymore!')
+                        y_top_left  = y_top_left + 1
+                        y_btm_right = y_btm_right + 1
             else:
                 messagebox.showwarning('error', 'Cannot move UP anymore!')
                 
@@ -463,10 +475,19 @@ class App(customtkinter.CTk):
                         self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,dest_color_array[dest_count])
                         temp_grid.clear()
                     else:
-                         y_top_left  = y_top_left - 1
-                         y_btm_right = y_btm_right - 1
+                        y_top_left  = y_top_left - 1
+                        y_btm_right = y_btm_right - 1
                 elif(mode == "path"):
-                    self.move_path("down")
+                    temp_grid = deepcopy(grid)
+                    if self.is_valid_path_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
+                        #self.canvas.delete("dest_"+dest_color_array[dest_count])
+                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","tag_path_source")
+                        temp_grid.clear()
+                    else:
+                        y_top_left  = y_top_left - 1
+                        y_btm_right = y_btm_right - 1
+                        messagebox.showwarning('error', 'Cannot move UP anymore!')
+
             else:
                 messagebox.showwarning('error', 'Cannot move down anymore!')
                 
@@ -489,7 +510,16 @@ class App(customtkinter.CTk):
                         x_top_left  = x_top_left + 1 
                         x_btm_right = x_btm_right + 1 
                 elif(mode == "path"):
-                    self.move_path("down")
+                    temp_grid = deepcopy(grid)
+                    if self.is_valid_path_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
+                        #self.canvas.delete("dest_"+dest_color_array[dest_count])
+                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","tag_path_source")
+                        temp_grid.clear()
+                    else:
+                        x_top_left  = x_top_left + 1 
+                        x_btm_right = x_btm_right + 1 
+                        messagebox.showwarning('error', 'Cannot move UP anymore!')
+
             else:
                 messagebox.showwarning('error', 'Cannot move left anymore!')
                 
@@ -512,14 +542,24 @@ class App(customtkinter.CTk):
                         x_top_left  = x_top_left - 1 
                         x_btm_right = x_btm_right - 1
                 elif(mode == "path"):
-                    self.move_path("down")
+                    temp_grid = deepcopy(grid)
+                    if self.is_valid_path_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
+                        #self.canvas.delete("dest_"+dest_color_array[dest_count])
+                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","tag_path_source")
+                        temp_grid.clear()
+                    else:
+                        x_top_left  = x_top_left - 1 
+                        x_btm_right = x_btm_right - 1
+                        messagebox.showwarning('error', 'Cannot move UP anymore!')
+
             else:
                 messagebox.showwarning('error', 'Cannot move right anymore!')
                 
     #End of Movement stuff
     
     def start_new_path(self):
-        global newMap_name
+        global newMap_name, mode
+        mode = "path"
         print("start New Path")
         db_obj = DatabaseOperations(db_file_path)
         map_data = db_obj.get_map_data(newMap_name)
@@ -532,25 +572,26 @@ class App(customtkinter.CTk):
         
         
     def populate_path_source(self):
-        global y_top_left,y_btm_right,x_top_left,x_btm_right,mode
+        global y_top_left,y_btm_right,x_top_left,x_btm_right,mode,direction
         db_obj = DatabaseOperations(db_file_path)
         source_pos = db_obj.get_source_data(newMap_name)
         print(source_pos)
         for row in source_pos:
             value = row[0] 
-            y_value,x_value= value.split(":")
-            y_top_left,y_btm_right=y_value.split(",")
-            x_top_left,x_btm_right=x_value.split(",")
+            direction=row[1]
+            top,bottom= value.split(":")
+            x_top_left, y_top_left=top.split(",")
+            x_btm_right, y_btm_right=bottom.split(",")
             x_top_left = int(x_top_left)
             x_btm_right = int(x_btm_right)
             y_top_left = int(y_top_left)
             y_btm_right = int(y_btm_right)
+            print("source co-orid = ",x_top_left," ", y_top_left, " ",x_btm_right," ",y_btm_right)
+            
             print(y_top_left," ", y_btm_right, " ",x_top_left," ",x_btm_right)
-            for col in range(int(y_top_left),int(y_btm_right)):
-                for row in range(int(x_top_left),int(x_btm_right)): 
-                    self.canvas.create_rectangle(row * GRID_SIZE, col * GRID_SIZE, (row + 1) * GRID_SIZE, (col + 1) * GRID_SIZE, fill="orange")
+            self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"orange","tag_path_source")
             self.update_map_header(newMap_name + " map : Mode - Path")
-            mode = "path"
+
 
     def revert_path():
         print("")
@@ -918,18 +959,17 @@ class App(customtkinter.CTk):
 
     def set_destination_values(self,dest_data):
         print("Set destination values")
+        global direction
         for row in dest_data:
             dest_name = row[1]
             color = row[2]
-            
-            x_value,y_value= dest_name.split(":")
-            y_top_left,y_btm_right=y_value.split(",")
-            x_top_left,x_btm_right=x_value.split(",")
-            print(y_top_left," ", y_btm_right, " ",x_top_left," ",x_btm_right)
-            for row in range(int(y_top_left),int(y_btm_right)):
-                for col in range(int(x_top_left),int(x_btm_right)): 
-                    self.canvas.create_rectangle(row * GRID_SIZE, col * GRID_SIZE, (row + 1) * GRID_SIZE, (col + 1) * GRID_SIZE, fill=color)
-        
+            direction = row[3]
+            top,bottom= dest_name.split(":")
+            x_top_left, y_top_left=top.split(",")
+            x_btm_right, y_btm_right=bottom.split(",")
+            print("dest co-orid = ",x_top_left," ", y_top_left, " ",x_btm_right," ",y_btm_right)
+            self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,color,"dest_path_"+color)
+
     def set_move_btn_names(self,name:str):
         self.button_move_up .configure(text="Move "+name+" Forward")
         self.button_move_left .configure(text="Turn "+name+" Left")
@@ -1113,9 +1153,7 @@ class App(customtkinter.CTk):
             for row in range(GRID_WIDTH):
                 for col in range(GRID_HEIGHT):
                     color = "WHITE"
-                    if grid[col][row] == 1:
-                        color = "GREEN"
-                    elif grid[col][row] == 3:
+                    if grid[col][row] == 3:
                         color = "Gray"
                     self.canvas.create_rectangle(row * GRID_SIZE, col * GRID_SIZE, (row + 1) * GRID_SIZE, (col + 1) * GRID_SIZE, fill=color,)
         
