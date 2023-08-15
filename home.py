@@ -44,10 +44,10 @@ HEIGHT = GRID_SIZE * GRID_HEIGHT
 grid = [[0 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
 start_pos = None
 end_pos = None
-y_axis_min = 0
-y_axis_max = 0
-x_axis_min = 0
-x_axis_max = 0 
+y_top_left = 0
+y_btm_right = 0
+x_top_left = 0
+x_btm_right = 0 
 obstacle_mode = False
 pause=True
 
@@ -66,6 +66,13 @@ dest_count = 0
 destName = None
 path_dest_names = []
 path_list = []
+
+#newarch variables
+y_top_left = 0
+x_top_left = 0
+y_btm_right = 0
+x_btm_right = 0
+direction = "right"
 
 class App(customtkinter.CTk):
        
@@ -212,14 +219,13 @@ class App(customtkinter.CTk):
         self.button_close_map = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Close Map")
         self.button_close_map.grid(row=6, column=1, padx=5, pady=(5,10), sticky="nsew")
         
-        self.button_move_up = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Move Up", command= self.move_up_clicked)
+        self.button_move_up = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Move Forward", command=lambda: self.move_forward())
         self.button_move_up.grid(row=7, column=0, columnspan =2, padx=5, pady=(5,10))       
-        self.button_move_left = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Move Left", command = self.move_left_clicked)
+        self.button_move_left = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Move Left", command=lambda: self.turn_and_move("left"))
         self.button_move_left.grid(row=8, column=0, padx=5, pady=(5,10), sticky="nsew")       
-        self.button_move_right = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Move Right", command = self.move_right_clicked)
+        self.button_move_right = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Move Right", command=lambda: self.turn_and_move("right"))
         self.button_move_right.grid(row=8, column=1, padx=5, pady=(5,10), sticky="nsew")       
-        self.button_move_down = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Move Down", command = self.move_down_clicked)
-        self.button_move_down.grid(row=9, column=0, columnspan =2, padx=5, pady=(5,10))
+
         
         #Path Tab
         
@@ -235,15 +241,13 @@ class App(customtkinter.CTk):
         self.button_revert_path = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Revert Path", command= self.revert_path)
         self.button_revert_path.grid(row=2, column=0, columnspan =2, padx=5, pady=(5,10))
         
-        self.button_path_move_up = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Up", command= self.move_up_clicked)
+        self.button_path_move_up = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Forward", command= lambda:self.move_forward())
         self.button_path_move_up.grid(row=3, column=0, columnspan =2, padx=5, pady=(25,10))       
-        self.button_path_move_left = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Left", command = self.move_left_clicked)
+        self.button_path_move_left = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Left", command = lambda:self.turn_and_move("left"))
         self.button_path_move_left.grid(row=4, column=0, padx=5, pady=(5,10), sticky="nsew")       
-        self.button_path_move_right = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Right", command = self.move_right_clicked)
+        self.button_path_move_right = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Right", command = lambda:self.turn_and_move("right"))
         self.button_path_move_right.grid(row=4, column=1, padx=5, pady=(5,10), sticky="nsew")       
-        self.button_path_move_down = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Down", command = self.move_down_clicked)
-        self.button_path_move_down.grid(row=5, column=0, columnspan =2, padx=5, pady=(5,10)) 
-        
+
         self.button_save_path = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Save Path",fg_color='#71c7ec', text_color = "#000000")
         self.button_save_path.grid(row=6, column=0, columnspan =2, padx=5, pady=(15,10))
         
@@ -342,11 +346,11 @@ class App(customtkinter.CTk):
         db_obj.create_table_if_not_exists(table1_name, columns1)
         
         table2_name = "tbt_sources"
-        columns2 = "source_id INTEGER PRIMARY KEY AUTOINCREMENT, source_name TEXT  NOT NULL , map_id INTEGER, position  TEXT, created_by TEXT, created_dt DATE, updated_by TEXT,updated_dt DATE, remarks TEXT, FOREIGN KEY (map_id) REFERENCES maps(map_id)"
+        columns2 = "source_id INTEGER PRIMARY KEY AUTOINCREMENT, source_name TEXT  NOT NULL , map_id INTEGER, position  TEXT, created_by TEXT, created_dt DATE, updated_by TEXT,updated_dt DATE, direction TEXT, remarks TEXT, FOREIGN KEY (map_id) REFERENCES maps(map_id)"
         db_obj.create_table_if_not_exists(table2_name, columns2)
 
         table3_name = "tbt_destinations"
-        columns3 = "dest_id INTEGER PRIMARY KEY  AUTOINCREMENT, dest_name TEXT NOT NULL , map_id INTEGER, position  TEXT, created_by TEXT, created_dt DATE, updated_by TEXT,updated_dt DATE, color TEXT, rotation INTEGER, remarks TEXT, FOREIGN KEY (map_id) REFERENCES maps(map_id)"
+        columns3 = "dest_id INTEGER PRIMARY KEY  AUTOINCREMENT, dest_name TEXT NOT NULL , map_id INTEGER, position  TEXT, created_by TEXT, created_dt DATE, updated_by TEXT,updated_dt DATE, color TEXT, direction TEXT, remarks TEXT, FOREIGN KEY (map_id) REFERENCES maps(map_id)"
         db_obj.create_table_if_not_exists(table3_name, columns3)
 
         table4_name = "tbt_bots"
@@ -363,7 +367,157 @@ class App(customtkinter.CTk):
         
         db_obj.close_connection()
         
+    # movement stuff
+    
+    def populate_grid(self, x_top_left: int, y_top_left: int, x_bottom_right: int, y_bottom_right: int, color: str):
+        if(mode == "addSource"):
+            self.canvas.create_rectangle(x_top_left * GRID_SIZE,y_top_left * GRID_SIZE,
+                            (x_bottom_right) * GRID_SIZE, (y_bottom_right) * GRID_SIZE,
+                            fill=color, tags="source")
+            self.update_arrow("source_arrow")
+        elif(mode == "addDestination"):
+            self.canvas.create_rectangle(x_top_left * GRID_SIZE,y_top_left * GRID_SIZE,
+                            (x_bottom_right) * GRID_SIZE, (y_bottom_right) * GRID_SIZE,
+                            fill=dest_color_array[dest_count], tags="dest_"+dest_color_array[dest_count])
+            self.update_arrow(dest_color_array[dest_count])
+        elif(mode == "path"):
+            self.move_path("down")
         
+        
+    def update_arrow(self,tag:str):
+        self.canvas.delete(tag)
+        # Calculate coordinates for the arrow baseon robot's direction
+        x_center = (x_top_left + x_btm_right) * GRID_SIZE / 2
+        y_center = (y_top_left + y_btm_right) * GRID_SIZE / 2
+
+        if direction == "up":
+            arrow_coords = [x_center, y_center - GRID_SIZE / 4, x_center - GRID_SIZE / 4, y_center + GRID_SIZE / 4,
+                            x_center + GRID_SIZE / 4, y_center + GRID_SIZE /4]
+        elif direction == "down":
+            arrow_coords = [x_center, y_center + GRID_SIZE / 4, x_center - GRID_SIZE / 4, y_center - GRID_SIZE / 4,
+                            x_center + GRID_SIZE / 4, y_center - GRID_SIZE / 4]
+        elif direction == "left":
+            arrow_coords = [x_center - GRID_SIZE / 4, y_center, x_center + GRID_SIZE / 4, y_center - GRID_SIZE / 4,
+                            x_center + GRID_SIZE / 4, y_center + GRID_SIZE / 4]
+        elif direction == "right":
+            arrow_coords = [x_center + GRID_SIZE / 4, y_center, x_center - GRID_SIZE / 4, y_center - GRID_SIZE / 4,
+                            x_center - GRID_SIZE / 4, y_center + GRID_SIZE / 4]
+        self.canvas.create_polygon(arrow_coords, fill="yellow", outline="black", tags=tag)
+
+    def turn_and_move(self,new_direction:str):
+        global direction
+        clockwise_rotation = {"up": "right", "right": "down", "down": "left", "left": "up"}
+        counterclockwise_rotation = {"up": "left", "left": "down", "down": "right", "right": "up"}
+
+        if new_direction == "right":
+            direction = clockwise_rotation[direction]
+        elif new_direction == "left":
+            direction = counterclockwise_rotation[direction]
+
+        self.canvas.delete("robot")
+        if(mode == "addSource"):
+            self.update_arrow("source_arrow")
+        elif(mode == "addDestination"):
+            self.update_arrow(dest_color_array[dest_count])
+        elif(mode == "path"):
+            self.move_path("down")
+        
+    def move_forward(self):
+        global x_top_left, y_top_left, x_btm_right, y_btm_right, direction
+        if direction == "up":
+            if(y_top_left>0):
+                x_top_left  = x_top_left
+                y_top_left  = y_top_left - 1
+                x_btm_right = x_btm_right
+                y_btm_right = y_btm_right - 1
+                if(mode == "addSource"):
+                    self.canvas.delete("source")
+                    self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,"Green")
+                elif(mode == "addDestination"):
+                    temp_grid = deepcopy(grid)
+                    if self.is_valid_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
+                        self.canvas.delete("dest_"+dest_color_array[dest_count])
+                        self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,dest_color_array[dest_count])
+                        temp_grid.clear()
+                    else:
+                         y_top_left  = y_top_left + 1
+                         y_btm_right = y_btm_right + 1
+                elif(mode == "path"):
+                    self.move_path("down")
+            else:
+                messagebox.showwarning('error', 'Cannot move UP anymore!')
+                
+        elif direction == "down":
+            if(y_btm_right < GRID_HEIGHT):
+                x_top_left  = x_top_left 
+                y_top_left  = y_top_left + 1
+                x_btm_right = x_btm_right 
+                y_btm_right = y_btm_right+1
+                if(mode == "addSource"):
+                    self.canvas.delete("source")
+                    self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,"Green")
+                elif(mode == "addDestination"):
+                    temp_grid = deepcopy(grid)
+                    if self.is_valid_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
+                        self.canvas.delete("dest_"+dest_color_array[dest_count])
+                        self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,dest_color_array[dest_count])
+                        temp_grid.clear()
+                    else:
+                         y_top_left  = y_top_left - 1
+                         y_btm_right = y_btm_right - 1
+                elif(mode == "path"):
+                    self.move_path("down")
+            else:
+                messagebox.showwarning('error', 'Cannot move down anymore!')
+                
+        elif direction == "left":
+            if(x_top_left > 0):
+                x_top_left  = x_top_left - 1 
+                y_top_left  = y_top_left
+                x_btm_right = x_btm_right - 1 
+                y_btm_right = y_btm_right
+                if(mode == "addSource"):
+                    self.canvas.delete("source")
+                    self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,"Green")
+                elif(mode == "addDestination"):
+                    temp_grid = deepcopy(grid)
+                    if self.is_valid_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
+                        self.canvas.delete("dest_"+dest_color_array[dest_count])
+                        self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,dest_color_array[dest_count])
+                        temp_grid.clear()
+                    else:
+                        x_top_left  = x_top_left + 1 
+                        x_btm_right = x_btm_right + 1 
+                elif(mode == "path"):
+                    self.move_path("down")
+            else:
+                messagebox.showwarning('error', 'Cannot move left anymore!')
+                
+        elif direction == "right":
+            if(x_btm_right < GRID_WIDTH):
+                x_top_left  = x_top_left + 1 
+                y_top_left  = y_top_left
+                x_btm_right = x_btm_right + 1
+                y_btm_right = y_btm_right
+                if(mode == "addSource"):
+                    self.canvas.delete("source")
+                    self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,"Green")
+                elif(mode == "addDestination"):
+                    temp_grid = deepcopy(grid)
+                    if self.is_valid_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
+                        self.canvas.delete("dest_"+dest_color_array[dest_count])
+                        self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,dest_color_array[dest_count])
+                        temp_grid.clear()
+                    else:
+                        x_top_left  = x_top_left - 1 
+                        x_btm_right = x_btm_right - 1
+                elif(mode == "path"):
+                    self.move_path("down")
+            else:
+                messagebox.showwarning('error', 'Cannot move right anymore!')
+                
+    #End of Movement stuff
+    
     def start_new_path(self):
         global newMap_name
         print("start New Path")
@@ -378,22 +532,22 @@ class App(customtkinter.CTk):
         
         
     def populate_path_source(self):
-        global y_axis_min,y_axis_max,x_axis_min,x_axis_max,mode
+        global y_top_left,y_btm_right,x_top_left,x_btm_right,mode
         db_obj = DatabaseOperations(db_file_path)
         source_pos = db_obj.get_source_data(newMap_name)
         print(source_pos)
         for row in source_pos:
             value = row[0] 
             y_value,x_value= value.split(":")
-            y_axis_min,y_axis_max=y_value.split(",")
-            x_axis_min,x_axis_max=x_value.split(",")
-            x_axis_min = int(x_axis_min)
-            x_axis_max = int(x_axis_max)
-            y_axis_min = int(y_axis_min)
-            y_axis_max = int(y_axis_max)
-            print(y_axis_min," ", y_axis_max, " ",x_axis_min," ",x_axis_max)
-            for col in range(int(y_axis_min),int(y_axis_max)):
-                for row in range(int(x_axis_min),int(x_axis_max)): 
+            y_top_left,y_btm_right=y_value.split(",")
+            x_top_left,x_btm_right=x_value.split(",")
+            x_top_left = int(x_top_left)
+            x_btm_right = int(x_btm_right)
+            y_top_left = int(y_top_left)
+            y_btm_right = int(y_btm_right)
+            print(y_top_left," ", y_btm_right, " ",x_top_left," ",x_btm_right)
+            for col in range(int(y_top_left),int(y_btm_right)):
+                for row in range(int(x_top_left),int(x_btm_right)): 
                     self.canvas.create_rectangle(row * GRID_SIZE, col * GRID_SIZE, (row + 1) * GRID_SIZE, (col + 1) * GRID_SIZE, fill="orange")
             self.update_map_header(newMap_name + " map : Mode - Path")
             mode = "path"
@@ -472,10 +626,11 @@ class App(customtkinter.CTk):
         global mode
         if(self.button_add_source.cget("text") == "Add Source"):
             if(newMap_name is not None):
+                mode = "addSource"
                 self.populate_source()
                 self.set_move_btn_names("Source")
                 self.update_map_header(newMap_name + " map : Mode - Add Source")
-                self.update_dimension_header("Top: 0 - Left : 0 - Right : "+str((GRID_WIDTH-x_axis_max)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_axis_max)/resolution) +" ft")
+                self.update_dimension_header("Top: 0 - Left : 0 - Right : "+str((GRID_WIDTH-x_btm_right)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_btm_right)/resolution) +" ft")
                 self.button_add_source.configure(text = "Save Source")
                 mode = "addSource"
                     # elif res == 'no':
@@ -492,7 +647,7 @@ class App(customtkinter.CTk):
         if(self.button_add_obstacles.cget("text") == "Add Obstacle"):
             if(newMap_name is not None):
                 self.update_map_header(newMap_name + " map : Mode - Add Obstacle")
-                #self.update_dimension_header("Top: 0 - Left : 0 - Right : "+str((GRID_WIDTH-x_axis_max)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_axis_max)/resolution) +" ft")
+                #self.update_dimension_header("Top: 0 - Left : 0 - Right : "+str((GRID_WIDTH-x_btm_right)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_btm_right)/resolution) +" ft")
                 self.button_add_obstacles.configure(text = "Save Obstacles")
                 mode = "addObstacles"
             else:
@@ -506,12 +661,12 @@ class App(customtkinter.CTk):
         global mode, dest_count
         if("Add Dest" in self.button_add_destination.cget("text")):
             if(newMap_name is not None):
+                mode = "addDestination"
                 self.populate_destination()
                 self.update_map_header(newMap_name + " map : Mode - Add Destination")
                 self.button_add_destination.configure(text = "Save Dest "+str(dest_count+1))
-                mode = "addDestination"
                 self.button_move_up.configure(state="enabled")
-                self.button_move_down.configure(state="enabled")
+                #self.button_move_down.configure(state="enabled")
                 self.button_move_right.configure(state="enabled")
                 self.button_move_left.configure(state="enabled")
                 self.set_move_btn_names("Dest")
@@ -536,120 +691,82 @@ class App(customtkinter.CTk):
             self.get_destination_name()
     
     def populate_source(self):
-        global y_axis_min,x_axis_min,y_axis_max,x_axis_max,grid
-        y_axis_min = 0
-        x_axis_min = 0
-        y_axis_max = resolution*bot_len_Y
-        x_axis_max = resolution*bot_len_X
-        for y in range(x_axis_max):
-            for x in range(y_axis_max):
-                self.populate_grid(y,x,"Green")
-                grid[x][y] = 1
+        global y_top_left,x_top_left,y_btm_right,x_btm_right,grid
+        y_top_left = 0
+        x_top_left = 0
+        y_btm_right = resolution*bot_len_Y
+        x_btm_right = resolution*bot_len_X
+        self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,"Green")
                 
     def populate_destination(self):
-        global y_axis_min,x_axis_min,y_axis_max,x_axis_max,grid
+        global y_top_left,x_top_left,y_btm_right,x_btm_right,grid
         #print(grid)
         result = self.find_nearest_fit(grid, bot_len_X*resolution, bot_len_Y*resolution)
         if result is not None:
-            y_axis_min, x_axis_min = result
-            # print("Top-left corner coordinates of the object's bounding box:")
-            # print("x_fit:", y_axis_min)
-            # print("y_fit:", x_axis_min)
-            y_axis_max = y_axis_min+((resolution*bot_len_Y))
-            x_axis_max = x_axis_min+((resolution*bot_len_X))
-            for y in range(x_axis_min,x_axis_max):
-                for x in range(y_axis_min,y_axis_max):
-                    self.populate_grid(y,x,dest_color_array[dest_count])
-                    grid[x][y] = 2
-            self.update_dimension_header("Top: "+str(y_axis_min/resolution)+" ft - Left : "+str(x_axis_min/resolution)+" ft - Right : "+str((GRID_WIDTH-x_axis_max)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_axis_max)/resolution)+" ft")
+            y_top_left, x_top_left = result
+            y_btm_right = y_top_left+((resolution*bot_len_Y))
+            x_btm_right = x_top_left+((resolution*bot_len_X))
+            self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,dest_color_array[dest_count])
+
+            # for y in range(x_top_left,x_btm_right):
+            #     for x in range(y_top_left,y_btm_right):
+            #         grid[x][y] = 2
+            self.update_dimension_header("Top: "+str(y_top_left/resolution)+" ft - Left : "+str(x_top_left/resolution)+" ft - Right : "+str((GRID_WIDTH-x_btm_right)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_btm_right)/resolution)+" ft")
         else:
             messagebox.showwarning('error', 'No place for destination!')
-                
-    def move_up_clicked(self):
-        if(mode == "addSource"):
-            self.move_bot("up","Green",1)
-        elif(mode == "addDestination"):
-            self.move_bot("up",dest_color_array[dest_count],2)
-        elif(mode == "path"):
-            self.move_path("up")
-            
-    def move_down_clicked(self):
-        if(mode == "addSource"):
-            self.move_bot("down","Green",1)
-        elif(mode == "addDestination"):
-            self.move_bot("down",dest_color_array[dest_count],2)
-        elif(mode == "path"):
-            self.move_path("down")
-            
-            
-    def move_right_clicked(self):
-        if(mode == "addSource"):
-            self.move_bot("right","Green",1)
-        elif(mode == "addDestination"):
-            self.move_bot("right",dest_color_array[dest_count],2)
-        elif(mode == "path"):
-            self.move_path("right")
-      
-    def move_left_clicked(self):
-        if(mode == "addSource"):
-            self.move_bot("left","Green",1)
-        elif(mode == "addDestination"):
-            self.move_bot("left",dest_color_array[dest_count],2)
-        elif(mode == "path"):
-            self.move_path("left")
     
     def move_path(self, direction:str):
-        global y_axis_min,x_axis_min,y_axis_max,x_axis_max,grid
-        y_axis_min_old = y_axis_min
-        y_axis_max_old = y_axis_max
-        x_axis_min_old = x_axis_min
-        x_axis_max_old = x_axis_max
+        global y_top_left,x_top_left,y_btm_right,x_btm_right,grid
+        y_top_left_old = y_top_left
+        y_btm_right_old = y_btm_right
+        x_top_left_old = x_top_left
+        x_btm_right_old = x_btm_right
         
-        print("Before : x_min = ",x_axis_min," : x_max = ",x_axis_max," : y_min = ",y_axis_min," : y_max = ",y_axis_max)
+        print("Before : x_min = ",x_top_left," : x_max = ",x_btm_right," : y_min = ",y_top_left," : y_max = ",y_btm_right)
         
         if(direction == "up"):
-            if(y_axis_min>0):
-                y_axis_min = y_axis_min-1
-                y_axis_max = y_axis_max-1
+            if(y_top_left>0):
+                y_top_left = y_top_left-1
+                y_btm_right = y_btm_right-1
             else:
                 messagebox.showwarning('error', 'Cannot move UP anymore!')
         elif(direction == "down"):
-            if(y_axis_max < GRID_HEIGHT):
-                y_axis_min = y_axis_min+1
-                y_axis_max = y_axis_max+1
+            if(y_btm_right < GRID_HEIGHT):
+                y_top_left = y_top_left+1
+                y_btm_right = y_btm_right+1
             else:
                 messagebox.showwarning('error', 'Cannot move DOWN anymore!')
         elif(direction == "right"):
-            if(x_axis_max < GRID_WIDTH):
-                x_axis_min = x_axis_min+1
-                x_axis_max = x_axis_max+1
+            if(x_btm_right < GRID_WIDTH):
+                x_top_left = x_top_left+1
+                x_btm_right = x_btm_right+1
             else:
                 messagebox.showwarning('error', 'Cannot move RIGHT anymore!')
         elif(direction == "left"):
-            if(x_axis_min > 0):
-                x_axis_min = x_axis_min-1
-                x_axis_max = x_axis_max-1
+            if(x_top_left > 0):
+                x_top_left = x_top_left-1
+                x_btm_right = x_btm_right-1
             else:
                 messagebox.showwarning('error', 'Cannot move LEFT anymore!')
 
         temp_grid = deepcopy(grid)
  
         print("GRID WIDTH = ",GRID_WIDTH,"  :  GRID HEIGHT = ",GRID_HEIGHT)
-        print("x_min = ",x_axis_min," : x_max = ",x_axis_max," : y_min = ",y_axis_min," : y_max = ",y_axis_max)
+        print("x_min = ",x_top_left," : x_max = ",x_btm_right," : y_min = ",y_top_left," : y_max = ",y_btm_right)
 
-        for y in range(x_axis_min_old,x_axis_max_old):
-            for x in range(y_axis_min_old,y_axis_max_old):
+        for y in range(x_top_left_old,x_btm_right_old):
+            for x in range(y_top_left_old,y_btm_right_old):
                 temp_grid[x][y] = 0
                 
         # print("''''''")
         # print("GRID = ",grid)
         # print("TEMP_GRID = ",temp_grid)
-        print("x_min_old = ",x_axis_min_old ," : x_max_old  = ",x_axis_max_old ," : y_min_old  = ",y_axis_min_old ," : y_max_old  = ",y_axis_max_old)
+        print("x_min_old = ",x_top_left_old ," : x_max_old  = ",x_btm_right_old ," : y_min_old  = ",y_top_left_old ," : y_max_old  = ",y_btm_right_old)
         
-        if self.is_valid_path_move(temp_grid, x_axis_min,x_axis_max,y_axis_min,y_axis_max):
+        if self.is_valid_path_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
             temp_grid.clear()
-            for y in range(x_axis_min_old,x_axis_max_old):
-                for x in range(y_axis_min_old,y_axis_max_old):
+            for y in range(x_top_left_old,x_btm_right_old):
+                for x in range(y_top_left_old,y_btm_right_old):
                     if(grid[x][y] == 1):
                         self.populate_grid(y,x,"green")
                     elif(grid[x][y] == 2):
@@ -657,88 +774,88 @@ class App(customtkinter.CTk):
                     # elif(grid[x][y] == 4):
                     #      self.populate_grid(y,x,"white")
 
-            for y in range(x_axis_min,x_axis_max):
-                for x in range(y_axis_min,y_axis_max):
+            for y in range(x_top_left,x_btm_right):
+                for x in range(y_top_left,y_btm_right):
                     if(grid[x][y] == 2):
                         self.populate_grid(y,x,"midnightblue")
                     else:
                         self.populate_grid(y,x,"yellow1")
                         grid[x][y] = 4
-                        self.update_dimension_header("Top: "+str(y_axis_min/resolution)+" ft - Left : "+str(x_axis_min/resolution)+" ft - Right : "+str((GRID_WIDTH-x_axis_max)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_axis_max)/resolution)+" ft")
+                        self.update_dimension_header("Top: "+str(y_top_left/resolution)+" ft - Left : "+str(x_top_left/resolution)+" ft - Right : "+str((GRID_WIDTH-x_btm_right)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_btm_right)/resolution)+" ft")
             #print("Post Update = ",grid)
         else:
             messagebox.showwarning('error', 'Cannot move due to source/Obstacle!')
             temp_grid.clear()
-            y_axis_min = y_axis_min_old
-            y_axis_max = y_axis_max_old
-            x_axis_min = x_axis_min_old
-            x_axis_max = x_axis_max_old
+            y_top_left = y_top_left_old
+            y_btm_right = y_btm_right_old
+            x_top_left = x_top_left_old
+            x_btm_right = x_btm_right_old
     
           
     def move_bot(self, direction:str, color:str, weight:int):
-        global y_axis_min,x_axis_min,y_axis_max,x_axis_max,grid
-        y_axis_min_old = y_axis_min
-        y_axis_max_old = y_axis_max
-        x_axis_min_old = x_axis_min
-        x_axis_max_old = x_axis_max
+        global y_top_left,x_top_left,y_btm_right,x_btm_right,grid
+        y_top_left_old = y_top_left
+        y_btm_right_old = y_btm_right
+        x_top_left_old = x_top_left
+        x_btm_right_old = x_btm_right
         
         if(direction == "up"):
-            if(y_axis_min>0):
-                y_axis_min = y_axis_min-1
-                y_axis_max = y_axis_max-1
+            if(y_top_left>0):
+                y_top_left = y_top_left-1
+                y_btm_right = y_btm_right-1
             else:
                 messagebox.showwarning('error', 'Cannot move UP anymore!')
         elif(direction == "down"):
-            if(y_axis_max < GRID_HEIGHT):
-                y_axis_min = y_axis_min+1
-                y_axis_max = y_axis_max+1
+            if(y_btm_right < GRID_HEIGHT):
+                y_top_left = y_top_left+1
+                y_btm_right = y_btm_right+1
             else:
                 messagebox.showwarning('error', 'Cannot move DOWN anymore!')
         elif(direction == "right"):
-            if(x_axis_max < GRID_WIDTH):
-                x_axis_min = x_axis_min+1
-                x_axis_max = x_axis_max+1
+            if(x_btm_right < GRID_WIDTH):
+                x_top_left = x_top_left+1
+                x_btm_right = x_btm_right+1
             else:
                 messagebox.showwarning('error', 'Cannot move RIGHT anymore!')
         elif(direction == "left"):
-            if(x_axis_min > 0):
-                x_axis_min = x_axis_min-1
-                x_axis_max = x_axis_max-1
+            if(x_top_left > 0):
+                x_top_left = x_top_left-1
+                x_btm_right = x_btm_right-1
             else:
                 messagebox.showwarning('error', 'Cannot move LEFT anymore!')
 
         temp_grid = deepcopy(grid)
  
         
-        for y in range(x_axis_min_old,x_axis_max_old):
-            for x in range(y_axis_min_old,y_axis_max_old):
+        for y in range(x_top_left_old,x_btm_right_old):
+            for x in range(y_top_left_old,y_btm_right_old):
                 temp_grid[x][y] = 0
                 
         # print("''''''")
         # print("GRID = ",grid)
         # print("TEMP_GRID = ",temp_grid)
-        # print("x_min = ",x_axis_min," : x_max = ",x_axis_max," : y_min = ",y_axis_min," : y_max = ",y_axis_max)
-        # print("x_min_old = ",x_axis_min_old ," : x_max_old  = ",x_axis_max_old ," : y_min_old  = ",y_axis_min_old ," : y_max_old  = ",y_axis_max_old)
+        # print("x_min = ",x_top_left," : x_max = ",x_btm_right," : y_min = ",y_top_left," : y_max = ",y_btm_right)
+        # print("x_min_old = ",x_top_left_old ," : x_max_old  = ",x_btm_right_old ," : y_min_old  = ",y_top_left_old ," : y_max_old  = ",y_btm_right_old)
         
-        if self.is_valid_move(temp_grid, x_axis_min,x_axis_max,y_axis_min,y_axis_max):
+        if self.is_valid_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
             temp_grid.clear()
-            for y in range(x_axis_min_old,x_axis_max_old):
-                for x in range(y_axis_min_old,y_axis_max_old):
+            for y in range(x_top_left_old,x_btm_right_old):
+                for x in range(y_top_left_old,y_btm_right_old):
                     self.populate_grid(y,x,"White")
                     grid[x][y] = 0
-            for y in range(x_axis_min,x_axis_max):
-                for x in range(y_axis_min,y_axis_max):
+            for y in range(x_top_left,x_btm_right):
+                for x in range(y_top_left,y_btm_right):
                     self.populate_grid(y,x,color)
                     grid[x][y] = weight
-            self.update_dimension_header("Top: "+str(y_axis_min/resolution)+" ft - Left : "+str(x_axis_min/resolution)+" ft - Right : "+str((GRID_WIDTH-x_axis_max)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_axis_max)/resolution)+" ft")
+            self.update_dimension_header("Top: "+str(y_top_left/resolution)+" ft - Left : "+str(x_top_left/resolution)+" ft - Right : "+str((GRID_WIDTH-x_btm_right)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_btm_right)/resolution)+" ft")
             #print("Post Update = ",grid)
         else:
             messagebox.showwarning('error', 'Cannot move due to source/Obstacle!')
             temp_grid.clear()
-            y_axis_min = y_axis_min_old
-            y_axis_max = y_axis_max_old
-            x_axis_min = x_axis_min_old
-            x_axis_max = x_axis_max_old
+            y_top_left = y_top_left_old
+            y_btm_right = y_btm_right_old
+            x_top_left = x_top_left_old
+            x_btm_right = x_btm_right_old
 
     def disable_grid_resize(self):
         self.button_refresh_map.configure(state="disabled")
@@ -759,7 +876,7 @@ class App(customtkinter.CTk):
         self.button_add_destination.configure(state = condition)
         self.button_add_obstacles.configure(state = condition)
         self.button_move_up.configure(state = condition)
-        self.button_move_down.configure(state = condition)
+        #self.button_move_down.configure(state = condition)
         self.button_move_right.configure(state = condition)
         self.button_move_left.configure(state = condition)
         self.button_close_map.configure(state = condition)
@@ -806,18 +923,17 @@ class App(customtkinter.CTk):
             color = row[2]
             
             x_value,y_value= dest_name.split(":")
-            y_axis_min,y_axis_max=y_value.split(",")
-            x_axis_min,x_axis_max=x_value.split(",")
-            print(y_axis_min," ", y_axis_max, " ",x_axis_min," ",x_axis_max)
-            for row in range(int(y_axis_min),int(y_axis_max)):
-                for col in range(int(x_axis_min),int(x_axis_max)): 
+            y_top_left,y_btm_right=y_value.split(",")
+            x_top_left,x_btm_right=x_value.split(",")
+            print(y_top_left," ", y_btm_right, " ",x_top_left," ",x_btm_right)
+            for row in range(int(y_top_left),int(y_btm_right)):
+                for col in range(int(x_top_left),int(x_btm_right)): 
                     self.canvas.create_rectangle(row * GRID_SIZE, col * GRID_SIZE, (row + 1) * GRID_SIZE, (col + 1) * GRID_SIZE, fill=color)
         
     def set_move_btn_names(self,name:str):
-        self.button_move_up .configure(text="Move "+name+" Up")
-        self.button_move_left .configure(text="Move "+name+" Left")
-        self.button_move_right .configure(text="Move "+name+" Right")
-        self.button_move_down .configure(text="Move "+name+" Down")
+        self.button_move_up .configure(text="Move "+name+" Forward")
+        self.button_move_left .configure(text="Turn "+name+" Left")
+        self.button_move_right .configure(text="Turn "+name+" Right")
         
     def save_empty_map(self):
         global map_id
@@ -829,14 +945,17 @@ class App(customtkinter.CTk):
         
     def save_source(self):
         table_name = "tbt_sources"
-        columns = ["source_name","map_id","position","created_by","created_dt","updated_by","updated_dt","remarks"]  # List of column names in the order of insertion
-        data_to_insert = [newMap_name+"_source", map_id, (str(y_axis_min)+","+str(y_axis_max)+":"+str(x_axis_min)+","+str(x_axis_max)), user_name,   datetime.today(), user_name, datetime.today(),'No Remarks']  # Use datetime.today() to get today's date
+        columns = ["source_name","map_id","position","created_by","created_dt","updated_by","updated_dt","direction","remarks"]  # List of column names in the order of insertion
+        data_to_insert = [newMap_name+"_source", map_id, (str(x_top_left)+","+str(y_top_left)+":"+str(x_btm_right)+","+str(y_btm_right)), user_name,   datetime.today(), user_name, datetime.today(),direction,'No Remarks']  # Use datetime.today() to get today's date
         db_obj = DatabaseOperations(db_file_path)
         source_id = db_obj.insert_data_into_table(table_name, columns, data=data_to_insert)
+        for y in range(x_top_left, x_btm_right):
+            for x in range(y_top_left, y_btm_right):
+                grid[x][y] = 1
         self.upgrade_map_grid()
         self.button_add_source.configure(state="disabled")
         self.button_move_up.configure(state="disabled")
-        self.button_move_down.configure(state="disabled")
+        #self.button_move_down.configure(state="disabled")
         self.button_move_right.configure(state="disabled")
         self.button_move_left.configure(state="disabled")
         self.button_add_obstacles.configure(state="enabled")
@@ -844,10 +963,13 @@ class App(customtkinter.CTk):
     def save_desination(self):
         global dest_count  
         table_name = "tbt_destinations"
-        columns = ["dest_name","map_id","position","created_by","created_dt","updated_by","updated_dt","rotation","color","remarks"]  # List of column names in the order of insertion
-        data_to_insert = [destName, map_id, (str(y_axis_min)+","+str(y_axis_max)+":"+str(x_axis_min)+","+str(x_axis_max)), user_name,   datetime.today(), user_name, datetime.today(),0,str(dest_color_array[dest_count]),"No Remark"]  # Use datetime.today() to get today's date
+        columns = ["dest_name","map_id","position","created_by","created_dt","updated_by","updated_dt","direction","color","remarks"]  # List of column names in the order of insertion
+        data_to_insert = [destName, map_id, (str(x_top_left)+","+str(y_top_left)+":"+str(x_btm_right)+","+str(y_btm_right)), user_name,   datetime.today(), user_name, datetime.today(),direction,str(dest_color_array[dest_count]),"No Remark"]  # Use datetime.today() to get today's date
         db_obj = DatabaseOperations(db_file_path)
         dest_id = db_obj.insert_data_into_table(table_name, columns, data=data_to_insert)
+        for y in range(x_top_left, x_btm_right):
+            for x in range(y_top_left, y_btm_right):
+                grid[x][y] = 2
         self.upgrade_map_grid()
         dest_count = dest_count+1
         self.button_add_destination.configure(text="Add Dest "+str(dest_count+1))
@@ -1050,9 +1172,8 @@ class App(customtkinter.CTk):
             self.update_dimension_header("Top: "+str(row/resolution)+" ft - Left : "+str(col/resolution)+" ft - Right : "+str((GRID_WIDTH-(col+1))/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-(row+1))/resolution)+" ft")
             #self.draw_grid()
         
-    def populate_grid(self, row: int, col: int, color: str):
-        self.canvas.create_rectangle(row * GRID_SIZE, col * GRID_SIZE,(row + 1) * GRID_SIZE, (col + 1) * GRID_SIZE,fill=color)
-
+   
+    
     # Draw the grid on the canvas
     def draw_grid_path(self):
         self.canvas.delete("all")
