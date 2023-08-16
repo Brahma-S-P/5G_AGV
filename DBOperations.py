@@ -146,3 +146,32 @@ class DatabaseOperations:
             messagebox.showinfo('Update', column_name+" updated successfully.")
         except sqlite3.Error as e:
             print(f"Error occurred while updating data: {e}")
+            
+            
+    def get_ip_address(self):
+        if not self.connection:
+            self.create_connection()
+        try:
+            query = f"SELECT config_name, config_value FROM tbt_mst_config "
+            
+            cursor = self.connection.execute(query)
+            results = cursor.fetchall()
+            if(len(results) == 0 ):
+                messagebox.showinfo('Error','Please Enter the IP address to Connect!')
+            return results
+            
+        except sqlite3.Error as e:
+            print(f"Error occurred while updating data: {e}")
+            
+            
+    def get_path_data(self, destName=None,mapName=None):
+        if not self.connection:
+            self.create_connection()
+        try:
+            query = f"SELECT path_value FROM tbt_paths path, tbt_maps map WHERE map.map_name = ? AND map.map_id = path.map_id AND path.dest_name = ?"
+            cursor = self.connection.execute(query, (mapName,destName))
+            results = cursor.fetchall()
+            return results
+        except sqlite3.Error as e:
+            print(f"Error occurred while fetching data: {e}")
+            return None
