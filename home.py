@@ -17,7 +17,7 @@ from DBOperations import DatabaseOperations
 from datetime import datetime
 from copy import copy, deepcopy
 from customtkinter import CTkEntry as OriginalCTkEntry
-
+import ast
 
 user_name = 'user'
 sock =None
@@ -51,14 +51,15 @@ x_btm_right = 0
 obstacle_mode = False
 pause=True
 
-newMap_name = None
+mapName = None
+dest_name = None
 map_id = None
 mode = "home"
 map_data = None
 dest_data = None
 #cap = cv2.VideoCapture("http://10.0.10.236:8080/stream/video.mjpeg")
 
-db_file_path = "agv.db"
+db_file_path = "agvdb.db"
 
 #destination stuff
 dest_color_array = ["brown1","purple", "cyan","brown","olive"]
@@ -226,7 +227,9 @@ class App(customtkinter.CTk):
         self.button_move_right = customtkinter.CTkButton(self.tabview.tab("Map"), text = "Move Right", command=lambda: self.turn_and_move("right"))
         self.button_move_right.grid(row=8, column=1, padx=5, pady=(5,10), sticky="nsew")       
 
-        
+        self.bind("<Left>", lambda event: self.turn_and_move("left"))
+        self.bind("<Right>", lambda event: self.turn_and_move("right"))
+        self.bind("<Up>", lambda event: self.move_forward())
         #Path Tab
         
         self.path_dest_box_canvas = customtkinter.CTkCanvas(self.tabview.tab("Path"), width=40, height=40, bg="#ffffff", highlightthickness=0)
@@ -248,7 +251,7 @@ class App(customtkinter.CTk):
         self.button_path_move_right = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Move Path Right", command = lambda:self.turn_and_move("right"))
         self.button_path_move_right.grid(row=4, column=1, padx=5, pady=(5,10), sticky="nsew")       
 
-        self.button_save_path = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Save Path",fg_color='#71c7ec', text_color = "#000000")
+        self.button_save_path = customtkinter.CTkButton(self.tabview.tab("Path"), text = "Save Path",fg_color='#71c7ec', text_color = "#000000", command = self.save_path) 
         self.button_save_path.grid(row=6, column=0, columnspan =2, padx=5, pady=(15,10))
         
         #UI Tab
@@ -362,7 +365,7 @@ class App(customtkinter.CTk):
         db_obj.create_table_if_not_exists(table5_name, columns5)
         
         table6_name = "tbt_paths"
-        columns6 = "path_id INTEGER PRIMARY KEY AUTOINCREMENT, map_id INTEGER,  path_to TEXT , path_value TEXT, created_by TEXT, created_dt DATE, updated_by TEXT, updated_dt DATE, remarks TEXT, FOREIGN KEY (map_id) REFERENCES maps(map_id)"
+        columns6 = "path_id INTEGER PRIMARY KEY AUTOINCREMENT, map_id INTEGER, dest_name TEXT,  path_to TEXT , path_value TEXT, created_by TEXT, created_dt DATE, updated_by TEXT, updated_dt DATE, remarks TEXT, FOREIGN KEY (map_id) REFERENCES maps(map_id)"
         db_obj.create_table_if_not_exists(table6_name, columns6)
         
         db_obj.close_connection()
@@ -381,15 +384,19 @@ class App(customtkinter.CTk):
             self.canvas.create_rectangle(x_top_left * GRID_SIZE,y_top_left * GRID_SIZE,
                             (x_bottom_right) * GRID_SIZE, (y_bottom_right) * GRID_SIZE,
                             fill=dest_color_array[dest_count], tags="dest_"+dest_color_array[dest_count])
-            self.update_arrow(dest_color_array[dest_count])
+            self.update_arrow("arrow_path_"+dest_color_array[dest_count])
+            print("Update arrow tag : " ,dest_color_array[dest_count])
        
         
     def populate_grid_path(self, x_top_left: int, y_top_left: int, x_bottom_right: int, y_bottom_right: int, color: str, tag:str):
         self.canvas.create_rectangle(int(x_top_left) * GRID_SIZE,int(y_top_left) * GRID_SIZE,(int(x_bottom_right)) * GRID_SIZE, (int(y_bottom_right)) * GRID_SIZE,fill=color, tags=tag)
         self.update_arrow("arrow_path_"+tag)
+       
+
         
     def update_arrow(self,tag:str):
         self.canvas.delete(tag)
+        print("tagss : ",tag)
         # Calculate coordinates for the arrow baseon robot's direction
         x_center = (x_top_left + x_btm_right) * GRID_SIZE / 2
         y_center = (y_top_left + y_btm_right) * GRID_SIZE / 2
@@ -406,7 +413,7 @@ class App(customtkinter.CTk):
         elif direction == "right":
             arrow_coords = [x_center + GRID_SIZE / 4, y_center, x_center - GRID_SIZE / 4, y_center - GRID_SIZE / 4,
                             x_center - GRID_SIZE / 4, y_center + GRID_SIZE / 4]
-        self.canvas.create_polygon(arrow_coords, fill="yellow", outline="black", tags=tag)
+        self.canvas.create_polygon(arrow_coords, fill="black", outline="grey", tags=tag)
 
     def turn_and_move(self,new_direction:str):
         global direction
@@ -415,25 +422,28 @@ class App(customtkinter.CTk):
 
         if new_direction == "right":
             direction = clockwise_rotation[direction]
+            path_list.append("r")
         elif new_direction == "left":
             direction = counterclockwise_rotation[direction]
+            path_list.append("l")
 
         self.canvas.delete("robot")
         if(mode == "addSource"):
             self.update_arrow("source_arrow")
         elif(mode == "addDestination"):
-            self.update_arrow(dest_color_array[dest_count])
+            self.update_arrow("arrow_path_"+dest_color_array[dest_count])
         elif(mode == "path"):
-            self.update_arrow("arrow_path_tag_path_source")
+            self.update_arrow("arrow_path_source")
         
     def move_forward(self):
-        global x_top_left, y_top_left, x_btm_right, y_btm_right, direction
+        global x_top_left, y_top_left, x_btm_right, y_btm_right, direction,path_list
         if direction == "up":
             if(y_top_left>0):
                 x_top_left  = x_top_left
                 y_top_left  = y_top_left - 1
                 x_btm_right = x_btm_right
                 y_btm_right = y_btm_right - 1
+                
                 if(mode == "addSource"):
                     self.canvas.delete("source")
                     self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,"Green")
@@ -451,6 +461,7 @@ class App(customtkinter.CTk):
                     if self.is_valid_path_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
                         #self.canvas.delete("dest_"+dest_color_array[dest_count])
                         self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","tag_path_source")
+                        path_list.append("f")
                         temp_grid.clear()
                     else:
                         messagebox.showwarning('error', 'Cannot move UP anymore!')
@@ -465,6 +476,7 @@ class App(customtkinter.CTk):
                 y_top_left  = y_top_left + 1
                 x_btm_right = x_btm_right 
                 y_btm_right = y_btm_right+1
+                
                 if(mode == "addSource"):
                     self.canvas.delete("source")
                     self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,"Green")
@@ -481,7 +493,8 @@ class App(customtkinter.CTk):
                     temp_grid = deepcopy(grid)
                     if self.is_valid_path_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
                         #self.canvas.delete("dest_"+dest_color_array[dest_count])
-                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","tag_path_source")
+                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","source")
+                        path_list.append("f")
                         temp_grid.clear()
                     else:
                         y_top_left  = y_top_left - 1
@@ -497,6 +510,7 @@ class App(customtkinter.CTk):
                 y_top_left  = y_top_left
                 x_btm_right = x_btm_right - 1 
                 y_btm_right = y_btm_right
+                
                 if(mode == "addSource"):
                     self.canvas.delete("source")
                     self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,"Green")
@@ -505,6 +519,7 @@ class App(customtkinter.CTk):
                     if self.is_valid_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
                         self.canvas.delete("dest_"+dest_color_array[dest_count])
                         self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,dest_color_array[dest_count])
+                        
                         temp_grid.clear()
                     else:
                         x_top_left  = x_top_left + 1 
@@ -513,7 +528,8 @@ class App(customtkinter.CTk):
                     temp_grid = deepcopy(grid)
                     if self.is_valid_path_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
                         #self.canvas.delete("dest_"+dest_color_array[dest_count])
-                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","tag_path_source")
+                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","source")
+                        path_list.append("f")
                         temp_grid.clear()
                     else:
                         x_top_left  = x_top_left + 1 
@@ -529,6 +545,7 @@ class App(customtkinter.CTk):
                 y_top_left  = y_top_left
                 x_btm_right = x_btm_right + 1
                 y_btm_right = y_btm_right
+               
                 if(mode == "addSource"):
                     self.canvas.delete("source")
                     self.populate_grid(x_top_left,y_top_left,x_btm_right,y_btm_right,"Green")
@@ -545,7 +562,8 @@ class App(customtkinter.CTk):
                     temp_grid = deepcopy(grid)
                     if self.is_valid_path_move(temp_grid, x_top_left,x_btm_right,y_top_left,y_btm_right):
                         #self.canvas.delete("dest_"+dest_color_array[dest_count])
-                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","tag_path_source")
+                        self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"yellow","source")
+                        path_list.append("f")
                         temp_grid.clear()
                     else:
                         x_top_left  = x_top_left - 1 
@@ -558,23 +576,36 @@ class App(customtkinter.CTk):
     #End of Movement stuff
     
     def start_new_path(self):
-        global newMap_name, mode
+        global mapName, mode, path_list
+        
+        path_list = []
         mode = "path"
         print("start New Path")
         db_obj = DatabaseOperations(db_file_path)
-        map_data = db_obj.get_map_data(newMap_name)
+        map_data = db_obj.get_map_data(mapName)
         #print(map_data)
         self.resize_grid_on_map_select(map_data)
-        dest_data = db_obj.get_dest_data(newMap_name)
+        dest_data = db_obj.get_dest_data(mapName)
         print("Dest ",dest_data)
         self.set_destination_values(dest_data)
         self.populate_path_source()
         
+    def save_path(self):
+        
+        print("Saving")
+        dest_name = self.path_dest_collection.get()
+        table_name = "tbt_paths"
+        columns = ["map_id","dest_name","path_to","path_value","created_by","created_dt","updated_by","updated_dt","remarks"]  # List of column names in the order of insertion
+        print((str(x_top_left)+" , "+str(y_top_left)+":"+str(x_btm_right)+","+str(y_btm_right)), str(path_list))
+        data_to_insert = [ map_id, dest_name, (str(x_top_left)+","+str(y_top_left)+":"+str(x_btm_right)+","+str(y_btm_right)), str(path_list), user_name,   datetime.today(), user_name, datetime.today(),'No Remarks']  # Use datetime.today() to get today's date
+        db_obj = DatabaseOperations(db_file_path)
+        source_id = db_obj.insert_data_into_table(table_name, columns, data=data_to_insert)
+        messagebox.showinfo('Info','Saved the Path!')
         
     def populate_path_source(self):
         global y_top_left,y_btm_right,x_top_left,x_btm_right,mode,direction
         db_obj = DatabaseOperations(db_file_path)
-        source_pos = db_obj.get_source_data(newMap_name)
+        source_pos = db_obj.get_source_data(mapName)
         print(source_pos)
         for row in source_pos:
             value = row[0] 
@@ -589,8 +620,8 @@ class App(customtkinter.CTk):
             print("source co-orid = ",x_top_left," ", y_top_left, " ",x_btm_right," ",y_btm_right)
             
             print(y_top_left," ", y_btm_right, " ",x_top_left," ",x_btm_right)
-            self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"orange","tag_path_source")
-            self.update_map_header(newMap_name + " map : Mode - Path")
+            self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,"orange","source")
+            self.update_map_header(mapName + " map : Mode - Path")
 
 
     def revert_path():
@@ -612,9 +643,13 @@ class App(customtkinter.CTk):
         mapName = self.button_map_collection.get()
         db_obj = DatabaseOperations(db_file_path)
         map_data = db_obj.get_map_data(mapName)
-        print(map_data)
+        #print(map_data)
         self.set_map_values(map_data)
         self.resize_grid_on_map_select(map_data)
+        dest_data = db_obj.get_dest_data(mapName)
+        print("Dest ",dest_data)
+        
+        self.populate_path_source()
         self.set_destination_dropdown()
         
     def set_destination_dropdown(self):
@@ -636,7 +671,7 @@ class App(customtkinter.CTk):
         self.set_destination_values(dest_data)
         
     def new_map_mode(self):
-        global mode, newMap_name
+        global mode, mapName
         if(self.button_addmap.cget("text") == "New Map"):
             res = messagebox.askquestion('Save Grid Size', 'Click Yes if GridSize, Unit and Resolution is fixed. Cannot be altered!')
             if res == 'yes':
@@ -645,12 +680,12 @@ class App(customtkinter.CTk):
             print("Save Map!")
     
     def get_map_name(self):
-        global newMap_name,mode
+        global mapName,mode
         dialog = customtkinter.CTkInputDialog(text="Map Name :", title="Enter the Map Name")
         db_obj = DatabaseOperations(db_file_path)
         map_name = dialog.get_input()
         if(map_name and not db_obj.isDuplicateMapName(map_name)):
-            newMap_name = map_name
+            mapName = map_name
             self.disable_grid_resize() 
             self.update_map_header(map_name + " map : Mode - none")
             self.save_empty_map()            
@@ -659,18 +694,18 @@ class App(customtkinter.CTk):
         else:
             messagebox.showwarning('error', 'Map Name Exists!')
             mode = "home"
-            newMap_name = None
+            mapName = None
             self.update_map_header("Home Screen")
             self.get_map_name()
             
     def start_source_mode(self):
         global mode
         if(self.button_add_source.cget("text") == "Add Source"):
-            if(newMap_name is not None):
+            if(mapName is not None):
                 mode = "addSource"
                 self.populate_source()
                 self.set_move_btn_names("Source")
-                self.update_map_header(newMap_name + " map : Mode - Add Source")
+                self.update_map_header(mapName + " map : Mode - Add Source")
                 self.update_dimension_header("Top: 0 - Left : 0 - Right : "+str((GRID_WIDTH-x_btm_right)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_btm_right)/resolution) +" ft")
                 self.button_add_source.configure(text = "Save Source")
                 mode = "addSource"
@@ -686,8 +721,8 @@ class App(customtkinter.CTk):
     def start_obstacles_mode(self):
         global mode
         if(self.button_add_obstacles.cget("text") == "Add Obstacle"):
-            if(newMap_name is not None):
-                self.update_map_header(newMap_name + " map : Mode - Add Obstacle")
+            if(mapName is not None):
+                self.update_map_header(mapName + " map : Mode - Add Obstacle")
                 #self.update_dimension_header("Top: 0 - Left : 0 - Right : "+str((GRID_WIDTH-x_btm_right)/resolution)+" ft - Bottom : "+str((GRID_HEIGHT-y_btm_right)/resolution) +" ft")
                 self.button_add_obstacles.configure(text = "Save Obstacles")
                 mode = "addObstacles"
@@ -701,10 +736,10 @@ class App(customtkinter.CTk):
     def start_destination_mode(self):
         global mode, dest_count
         if("Add Dest" in self.button_add_destination.cget("text")):
-            if(newMap_name is not None):
+            if(mapName is not None):
                 mode = "addDestination"
                 self.populate_destination()
-                self.update_map_header(newMap_name + " map : Mode - Add Destination")
+                self.update_map_header(mapName + " map : Mode - Add Destination")
                 self.button_add_destination.configure(text = "Save Dest "+str(dest_count+1))
                 self.button_move_up.configure(state="enabled")
                 #self.button_move_down.configure(state="enabled")
@@ -718,7 +753,7 @@ class App(customtkinter.CTk):
             self.get_destination_name()
             
     def get_destination_name(self):
-        global newMap_name,mode,destName
+        global mapName,mode,destName
         dialog = customtkinter.CTkInputDialog(text="Destination Name :", title="Enter Destination Name")
         db_obj = DatabaseOperations(db_file_path)
         dest_name = dialog.get_input()
@@ -950,16 +985,34 @@ class App(customtkinter.CTk):
         for row in dest_data:
             if(row[0]==dest_name.split(" : ")[0]):
                 self.main_dest_box_canvas.create_rectangle(5, 5, 40, 40, fill=row[2])  # Added a slight offset for the rectangle
+        path_val =db_obj.get_path_data(dest_name,mapName)
+        print("path data from db : ",path_val)
+        for path_value in path_val: 
+            path_list = ast.literal_eval(path_value[0])
+            
+        self.start_new_path()
+        mode="path"
+        for bot_movement in path_list:
+            time.sleep(100)
+
+            if(bot_movement=='f'):
+                self.move_forward()
+            elif (bot_movement=='l'):
+                self.turn_and_move("left")
+            elif (bot_movement=='r'):
+                self.turn_and_move("right")
+            
+            
                 
     def set_destination_color_path(self, event: str):
-        global mapName
+        global mapName,dest_name
         dest_name = self.path_dest_collection.get()
         self.path_dest_box_canvas.create_rectangle(0, 0, 40, 40, fill=dest_name.split(" : ")[1])  # Added a slight offset for the rectangle
                 
 
     def set_destination_values(self,dest_data):
         print("Set destination values")
-        global direction
+        global direction,x_top_left,y_top_left,x_btm_right, y_btm_right
         for row in dest_data:
             dest_name = row[1]
             color = row[2]
@@ -967,8 +1020,12 @@ class App(customtkinter.CTk):
             top,bottom= dest_name.split(":")
             x_top_left, y_top_left=top.split(",")
             x_btm_right, y_btm_right=bottom.split(",")
+            x_top_left = int(x_top_left)
+            x_btm_right = int(x_btm_right)
+            y_top_left = int(y_top_left)
+            y_btm_right = int(y_btm_right)
             print("dest co-orid = ",x_top_left," ", y_top_left, " ",x_btm_right," ",y_btm_right)
-            self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,color,"dest_path_"+color)
+            self.populate_grid_path(x_top_left,y_top_left,x_btm_right,y_btm_right,color,color)
 
     def set_move_btn_names(self,name:str):
         self.button_move_up .configure(text="Move "+name+" Forward")
@@ -979,14 +1036,14 @@ class App(customtkinter.CTk):
         global map_id
         table_name = "tbt_maps"
         columns = ["map_name","x_value","y_value","grid_values","units","resolution","created_by","created_dt","updated_by","updated_dt","remarks"]  # List of column names in the order of insertion
-        data_to_insert = [newMap_name, (int(GRID_WIDTH)/resolution), (int(GRID_HEIGHT)/resolution), str(grid), str(self.dropdown_si_unit.get()), str(self.dropdown_xy_resolution.get()), user_name,   datetime.today(),user_name,  datetime.today(),'No Remarks']  # Use datetime.today() to get today's date
+        data_to_insert = [mapName, (int(GRID_WIDTH)/resolution), (int(GRID_HEIGHT)/resolution), str(grid), str(self.dropdown_si_unit.get()), str(self.dropdown_xy_resolution.get()), user_name,   datetime.today(),user_name,  datetime.today(),'No Remarks']  # Use datetime.today() to get today's date
         db_obj = DatabaseOperations(db_file_path)
         map_id = db_obj.insert_data_into_table(table_name, columns, data=data_to_insert)
         
     def save_source(self):
         table_name = "tbt_sources"
         columns = ["source_name","map_id","position","created_by","created_dt","updated_by","updated_dt","direction","remarks"]  # List of column names in the order of insertion
-        data_to_insert = [newMap_name+"_source", map_id, (str(x_top_left)+","+str(y_top_left)+":"+str(x_btm_right)+","+str(y_btm_right)), user_name,   datetime.today(), user_name, datetime.today(),direction,'No Remarks']  # Use datetime.today() to get today's date
+        data_to_insert = [mapName+"_source", map_id, (str(x_top_left)+","+str(y_top_left)+":"+str(x_btm_right)+","+str(y_btm_right)), user_name,   datetime.today(), user_name, datetime.today(),direction,'No Remarks']  # Use datetime.today() to get today's date
         db_obj = DatabaseOperations(db_file_path)
         source_id = db_obj.insert_data_into_table(table_name, columns, data=data_to_insert)
         for y in range(x_top_left, x_btm_right):
